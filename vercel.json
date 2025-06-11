@@ -1,11 +1,11 @@
 {
   "version": 2,
   "rewrites": [
-    // Serve the main index.html for /configure
+    
     { "source": "/configure",          "destination": "/index.html" },
-    // Serve static assets under /configure (files in dist/)
+    
     { "source": "/configure/:path*",  "destination": "/:path*" },
-    // Forward all other routes to the Express backend
+    
     { "source": "/(.*)",              "destination": "/addon/server.js" }
   ]
 }
