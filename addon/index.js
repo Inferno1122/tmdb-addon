@@ -238,4 +238,7 @@ addon.get("/:catalogChoices?/stream/:type/:id.json", async function (req, res) {
     respond(res, { streams: [] });
   }
 });
+addon.get("/:catalogChoices?/stream/:type/:id.json", function (req, res) {
+  respond(res, { streams: [] });
+});
 module.exports = addon;
