@@ -1,16 +1,18 @@
 {
   "version": 2,
-  "public": "dist",
-  "rewrites": [
-    { "source": "/configure", "destination": "/index.html" },
-    { "source": "/configure/:path*", "destination": "/:path*" },
-    
-    { "source": "/manifest.json", "destination": "/addon/server.js" },
-    { "source": "/catalog/:path*", "destination": "/addon/server.js" },
-    { "source": "/meta/:path*", "destination": "/addon/server.js" },
-    { "source": "/stream/:path*", "destination": "/addon/server.js" },
-    
-    { "source": "/addon/:path*", "destination": "/addon/server.js" },
-    { "source": "/:path*", "destination": "/addon/server.js" }
+  "builds": [
+    { "src": "addon/server.js", "use": "@vercel/node" },
+    { "src": "configure/dist/**", "use": "@vercel/static" }
+  ],
+  "routes": [
+    { "src": "/manifest.json", "dest": "/addon/server.js" },
+    { "src": "/catalog/.*", "dest": "/addon/server.js" },
+    { "src": "/meta/.*", "dest": "/addon/server.js" },
+    { "src": "/stream/.*", "dest": "/addon/server.js" },
+
+    { "src": "/configure", "dest": "/configure/dist/index.html" },
+    { "src": "/configure/(.*)", "dest": "/configure/dist/$1" },
+
+    { "src": "/.*", "dest": "/addon/server.js" }
   ]
 }
