@@ -219,5 +219,23 @@ addon.get("/api/image/blur", async function (req, res) {
     res.status(500).json({ error: 'Erro interno do servidor' });
   }
 });
+addon.get("/:catalogChoices?/stream/:type/:id.json", async function (req, res) {
+  const { catalogChoices, type, id } = req.params;
+  const config = parseConfig(catalogChoices);
 
+  try {
+    // You should replace this with actual stream fetching logic
+    const streams = [
+      {
+        title: "Sample Video",
+        url: "https://sample-videos.com/video123/mp4/720/big_buck_bunny_720p_1mb.mp4"
+      }
+    ];
+
+    respond(res, { streams });
+  } catch (err) {
+    console.error("Stream handler error:", err);
+    respond(res, { streams: [] });
+  }
+});
 module.exports = addon;
