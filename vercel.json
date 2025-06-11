@@ -1,11 +1,28 @@
 {
   "version": 2,
   "builds": [
-    { "src": "addon/server.js", "use": "@vercel/node" },
-    { "src": "package.json", "use": "@vercel/static-build", "config": { "distDir": "dist" } }
+    { "src": "addon/server.js",   "use": "@vercel/node"        },
+    { "src": "package.json",      "use": "@vercel/static-build", 
+      "config": { "distDir": "dist" } }
   ],
   "routes": [
-    { "src": "/api/(.*)", "dest": "/addon/server.js" },
-    { "src": "/(.*)", "dest": "/dist/$1" }
+    // Send all /api/* and other addon endpoints to Node
+    { "src": "^/api/(.*)$",       "dest": "/addon/server.js" },
+    { "src": "^/request_token$",  "dest": "/addon/server.js" },
+    { "src": "^/session_id$",     "dest": "/addon/server.js" },
+    { "src": "^/manifest.json$",  "dest": "/addon/server.js" },
+    { "src": "^/catalog/(.*)$",   "dest": "/addon/server.js" },
+    { "src": "^/meta/(.*)$",      "dest": "/addon/server.js" },
+    { "src": "^/api/image/blur$", "dest": "/addon/server.js" },
+
+    // Redirect the root to /configure
+    { "src": "^/$",               "status": 308, "dest": "/configure" },
+
+    // Serve the static frontend under /configure
+    { "src": "^/configure$",      "dest": "/dist/index.html" },
+    { "src": "^/configure/(.*)$", "dest": "/dist/$1" },
+
+    // Fallback: serve any other static asset from dist
+    { "src": "/(.*)",             "dest": "/dist/$1" }
   ]
 }
