@@ -316,6 +316,14 @@ export default function Home() {
             />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 text-left">
+            <div className="mt-8">
+  <a
+    href={`${window.location.origin}/manifest.json`}
+    className="inline-block bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg transition duration-200"
+  >
+    Install Stremio Addon
+  </a>
+</div>
             <div className="bg-white/10 rounded-lg p-6 backdrop-blur-sm">
               <h3 className="text-xl font-semibold mb-2">Movies</h3>
               <p className="text-gray-300">
