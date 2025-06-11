@@ -1,6 +1,7 @@
 {
   "version": 2,
   "rewrites": [
+    { "source": "/configure/api/:path*", "destination": "/addon/server.js" },
     { "source": "/configure", "destination": "/index.html" },
     { "source": "/configure/:path*", "destination": "/:path*" },
     { "source": "/(.*)", "destination": "/addon/server.js" }
