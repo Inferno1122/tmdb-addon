@@ -8,15 +8,26 @@ const redis = Redis.fromEnv();
 
 async function cacheWrap(key, ttl, fn) {
   try {
-    const data = await redis.get(key);
-    if (data != null) {
-      console.log(`[Redis] HIT: ${key}`);
-      return JSON.parse(data);
+    const cached = await redis.get(key);
+
+    if (typeof cached === 'string') {
+      try {
+        const parsed = JSON.parse(cached);
+        console.log(`[Redis] HIT: ${key}`);
+        return parsed;
+      } catch (e) {
+        console.warn(`[Redis] Invalid cached JSON for ${key}, ignoring`);
+      }
     }
 
     console.log(`[Redis] MISS: ${key}`);
     const result = await fn();
-    await redis.set(key, JSON.stringify(result), { ex: ttl });
+
+    // Only store valid JSON-compatible objects
+    if (typeof result === 'object') {
+      await redis.set(key, JSON.stringify(result), { ex: ttl });
+    }
+
     return result;
   } catch (e) {
     console.warn('[Redis] Cache error:', e);
