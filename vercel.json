@@ -6,7 +6,7 @@
       "config": { "distDir": "dist" } }
   ],
   "routes": [
-    // Send all /api/* and other addon endpoints to Node
+    
     { "src": "^/api/(.*)$",       "dest": "/addon/server.js" },
     { "src": "^/request_token$",  "dest": "/addon/server.js" },
     { "src": "^/session_id$",     "dest": "/addon/server.js" },
@@ -15,14 +15,14 @@
     { "src": "^/meta/(.*)$",      "dest": "/addon/server.js" },
     { "src": "^/api/image/blur$", "dest": "/addon/server.js" },
 
-    // Redirect the root to /configure
+    
     { "src": "^/$",               "status": 308, "dest": "/configure" },
 
-    // Serve the static frontend under /configure
+    
     { "src": "^/configure$",      "dest": "/dist/index.html" },
     { "src": "^/configure/(.*)$", "dest": "/dist/$1" },
 
-    // Fallback: serve any other static asset from dist
+    
     { "src": "/(.*)",             "dest": "/dist/$1" }
   ]
 }
