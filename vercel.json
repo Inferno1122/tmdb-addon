@@ -1,14 +1,12 @@
 {
   "version": 2,
   "rewrites": [
-    { "source": "/configure/api/:path*", "destination": "/addon/server.js" },
-    { "source": "/manifest.json", "destination": "/addon/server.js" },
-    { "source": "/stream/:path*", "destination": "/addon/server.js" },
-    { "source": "/catalog/:path*", "destination": "/addon/server.js" },
-    { "source": "/meta/:path*", "destination": "/addon/server.js" },
-    { "source": "/addon/:path*", "destination": "/addon/server.js" },
-    { "source": "/configure", "destination": "/index.html" },
-    { "source": "/configure/:path*", "destination": "/:path*" },
-    { "source": "/(.*)", "destination": "/addon/server.js" }
+    { "source": "/configure",                "destination": "/dist/index.html" },
+    { "source": "/configure/:path*",         "destination": "/dist/:path*" },
+    { "source": "/manifest.json",            "destination": "/addon/server.js" },
+    { "source": "/catalog/:path*",           "destination": "/addon/server.js" },
+    { "source": "/meta/:path*",              "destination": "/addon/server.js" },
+    { "source": "/stream/:path*",            "destination": "/addon/server.js" },
+    { "source": "/:path*",                   "destination": "/addon/server.js" }
   ]
 }
