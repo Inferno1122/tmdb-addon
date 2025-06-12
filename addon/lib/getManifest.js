@@ -3,217 +3,121 @@ const { getGenreList } = require("./getGenreList");
 const { getLanguages } = require("./getLanguages");
 const { getGenresFromMDBList } = require("../utils/mdbList");
 const packageJson = require("../../package.json");
-const catalogsTranslations = require("../static/translations.json");
-const CATALOG_TYPES = require("../static/catalog-types.json");
-const DEFAULT_LANGUAGE = "en-US";
 
-function generateArrayOfYears(maxYears) {
-  const max = new Date().getFullYear();
-  const min = max - maxYears;
-  const years = [];
-  for (let i = max; i >= min; i--) {
-    years.push(i.toString());
-  }
-  return years;
-}
+const DEFAULT_LANGUAGE = 'en';
 
-function setOrderLanguage(language, languagesArray) {
-  const languageObj = languagesArray.find((lang) => lang.iso_639_1 === language);
-  const fromIndex = languagesArray.indexOf(languageObj);
-  const element = languagesArray.splice(fromIndex, 1)[0];
-  languagesArray = languagesArray.sort((a, b) => (a.name > b.name ? 1 : -1));
-  languagesArray.splice(0, 0, element);
-  return [...new Set(languagesArray.map((el) => el.name))];
-}
-
-function loadTranslations(language) {
-  const defaultTranslations = catalogsTranslations[DEFAULT_LANGUAGE] || {};
-  const selectedTranslations = catalogsTranslations[language] || {};
-  return { ...defaultTranslations, ...selectedTranslations };
-}
-
-function createCatalog(id, type, catalogDef, options, tmdbPrefix, translatedCatalogs, showInHome = false) {
-  const extra = [];
-
-  if (catalogDef.extraSupported.includes("genre")) {
-    const formattedOptions = catalogDef.defaultOptions
-      ? catalogDef.defaultOptions.map(option => {
-          if (option.includes('.')) {
-            const [field, order] = option.split('.');
-            if (translatedCatalogs[field] && translatedCatalogs[order]) {
-              return `${translatedCatalogs[field]} (${translatedCatalogs[order]})`;
-            }
-            return option;
-          }
-          return translatedCatalogs[option] || option;
-        })
-      : Array.isArray(options) ? options : [];
-
-    extra.push({ name: "genre", options: formattedOptions, isRequired: showInHome ? false : true });
-  }
-
-  if (catalogDef.extraSupported.includes("search")) {
-    extra.push({ name: "search" });
-  }
-
-  if (catalogDef.extraSupported.includes("skip")) {
-    extra.push({ name: "skip" });
-  }
-
-  return {
-    id,
-    type,
-    name: `${tmdbPrefix ? "TMDB - " : ""}${translatedCatalogs[catalogDef.nameKey]}`,
-    pageSize: 20,
-    extra
-  };
-}
-
-function getCatalogDefinition(catalogId) {
-  const [provider, type] = catalogId.split('.');
-  for (const category of Object.keys(CATALOG_TYPES)) {
-    if (CATALOG_TYPES[category][type]) {
-      return CATALOG_TYPES[category][type];
-    }
-  }
-  return null;
-}
-
-function getOptionsForCatalog(catalogDef, type, showInHome, { years, genres_movie, genres_series, filterLanguages }) {
-  if (catalogDef.defaultOptions) return catalogDef.defaultOptions;
-  const movieGenres = showInHome ? [...genres_movie] : ["Top", ...genres_movie];
-  const seriesGenres = showInHome ? [...genres_series] : ["Top", ...genres_series];
-
-  switch (catalogDef.nameKey) {
-    case 'year': return years;
-    case 'language': return filterLanguages;
-    case 'popular': return type === 'movie' ? movieGenres : seriesGenres;
-    default: return type === 'movie' ? movieGenres : seriesGenres;
-  }
-}
-
-async function createMDBListCatalog(userCatalog, mdblistKey) {
-  const listId = userCatalog.id.split(".")[1];
-  const genres = await getGenresFromMDBList(listId, mdblistKey);
-  return {
-    id: userCatalog.id,
-    type: userCatalog.type,
-    name: userCatalog.name,
-    pageSize: 20,
-    extra: [
-      { name: "genre", options: genres, isRequired: false },
-      { name: "skip" },
-    ],
-    showInHome: userCatalog.showInHome,
-  };
-}
-
-async function getManifest(config) {
+const getManifest = async (config) => {
   const language = config.language || DEFAULT_LANGUAGE;
-  const tmdbPrefix = config.tmdbPrefix === "true";
-  const provideImdbId = config.provideImdbId === "true";
-  const sessionId = config.sessionId;
-  const userCatalogs = config.catalogs || getDefaultCatalogs();
-  const translatedCatalogs = loadTranslations(language);
-  const hostName = process.env.HOST_NAME || 'https://tmdb-addon-five.vercel.app';
+  const provideImdbId = config.imdbIds === "true";
 
-  const stremioAddonsConfig = {
-    issuer: "https://stremio-addons.net"
-  };
+  const catalogsTranslations = getLanguageTranslations(language).catalogs;
+  const defaultTranslations = getLanguageTranslations('en');
+  const translatedCatalogs = { ...defaultTranslations.catalogs, ...catalogsTranslations };
 
-  const years = generateArrayOfYears(20);
-  const genres_movie = await getGenreList(language, "movie").then(genres => genres.map(el => el.name).sort());
-  const genres_series = await getGenreList(language, "series").then(genres => genres.map(el => el.name).sort());
-  const languagesArray = await getLanguages();
-  const filterLanguages = setOrderLanguage(language, languagesArray);
-  const isMDBList = (id) => id.startsWith("mdblist.");
-  const options = { years, genres_movie, genres_series, filterLanguages };
+  let catalogs = [];
+  const tmdbPrefix = config.tmdbPrefix ? config.tmdbPrefix + " " : "";
 
-  let catalogs = await Promise.all(userCatalogs
-    .filter(userCatalog => {
-      const catalogDef = getCatalogDefinition(userCatalog.id);
-      if (isMDBList(userCatalog.id)) return true;
-      if (!catalogDef) return false;
-      if (catalogDef.requiresAuth && !sessionId) return false;
-      return true;
+  const genres = await getGenresFromMDBList(config.mdblistkey);
+  const translations = getLanguageTranslations(language);
+  const genreTranslations = translations.genres || defaultTranslations.genres;
+
+  const genreOptions = Object.keys(genreTranslations).map((g) => ({
+    id: g,
+    name: genreTranslations[g],
+  }));
+
+  const defaultYears = ["2023", "2022", "2021", "2020", "2019", "2018"];
+  const defaultLanguageOptions = Object.entries(getLanguages())
+    .map(([code, info]) => ({ id: code, name: info.name }));
+
+  catalogs.push(
+    getCatalogDefinition(`${tmdbPrefix}${translatedCatalogs.movies.popular}`, 'movie', {
+      extra: ["genre", "search", "skip"],
+      defaultOptions: genres.movies,
+      extraSupported: ["genre", "search", "skip", "rpdb"],
+      showInHome: true
+    }),
+    getCatalogDefinition(`${tmdbPrefix}${translatedCatalogs.movies.trending}`, 'movie', {
+      id: "tmdb.trending",
+      extra: ["genre", "search", "skip"],
+      defaultOptions: genres.movies,
+      extraSupported: ["genre", "search", "skip", "rpdb"],
+      showInHome: false
+    }),
+    getCatalogDefinition(`${tmdbPrefix}${translatedCatalogs.movies.year}`, 'movie', {
+      id: "tmdb.year",
+      extra: ["genre", "search", "skip"],
+      defaultOptions: defaultYears,
+      extraSupported: ["genre", "search", "skip", "rpdb"],
+      showInHome: false
+    }),
+    getCatalogDefinition(`${tmdbPrefix}${translatedCatalogs.movies.language}`, 'movie', {
+      id: "tmdb.language",
+      extra: ["genre", "search", "skip"],
+      defaultOptions: defaultLanguageOptions,
+      extraSupported: ["genre", "search", "skip", "rpdb"],
+      showInHome: false
+    }),
+    getCatalogDefinition(`${tmdbPrefix}${translatedCatalogs.series.popular}`, 'series', {
+      extra: ["genre", "search", "skip"],
+      defaultOptions: genres.series,
+      extraSupported: ["genre", "search", "skip", "rpdb"],
+      showInHome: true
+    }),
+    getCatalogDefinition(`${tmdbPrefix}${translatedCatalogs.series.trending}`, 'series', {
+      id: "tmdb.trending",
+      extra: ["genre", "search", "skip"],
+      defaultOptions: genres.series,
+      extraSupported: ["genre", "search", "skip", "rpdb"],
+      showInHome: false
+    }),
+    getCatalogDefinition(`${tmdbPrefix}${translatedCatalogs.series.year}`, 'series', {
+      id: "tmdb.year",
+      extra: ["genre", "search", "skip"],
+      defaultOptions: defaultYears,
+      extraSupported: ["genre", "search", "skip", "rpdb"],
+      showInHome: false
+    }),
+    getCatalogDefinition(`${tmdbPrefix}${translatedCatalogs.series.language}`, 'series', {
+      id: "tmdb.language",
+      extra: ["genre", "search", "skip"],
+      defaultOptions: defaultLanguageOptions,
+      extraSupported: ["genre", "search", "skip", "rpdb"],
+      showInHome: false
     })
-    .map(userCatalog => {
-      if (isMDBList(userCatalog.id)) {
-        return createMDBListCatalog(userCatalog, config.mdblistkey);
-      }
-      const catalogDef = getCatalogDefinition(userCatalog.id);
-      const catalogOptions = getOptionsForCatalog(catalogDef, userCatalog.type, userCatalog.showInHome, options);
-      return createCatalog(
-        userCatalog.id,
-        userCatalog.type,
-        catalogDef,
-        catalogOptions,
-        tmdbPrefix,
-        translatedCatalogs,
-        userCatalog.showInHome
-      );
-    }));
-
-  catalogs = catalogs.filter(Boolean);
+  );
 
   if (config.searchEnabled !== "false") {
     const searchCatalogMovie = {
       id: "tmdb.search",
       type: "movie",
-      name: `${tmdbPrefix ? "TMDB - " : ""}${translatedCatalogs.search}`,
+      name: `${tmdbPrefix}${translatedCatalogs.search}`,
       extra: [{ name: "search", isRequired: true, options: [] }]
     };
-
-    const searchCatalogSeries = {
-      id: "tmdb.search",
+    const searchCatalogTv = {
+      id: "tmdb.search.series",
       type: "series",
-      name: `${tmdbPrefix ? "TMDB - " : ""}${translatedCatalogs.search}`,
+      name: `${tmdbPrefix}${translatedCatalogs.search} (${translatedCatalogs.series.name})`,
       extra: [{ name: "search", isRequired: true, options: [] }]
     };
-
-    catalogs = [...catalogs, searchCatalogMovie, searchCatalogSeries];
+    catalogs.push(searchCatalogMovie, searchCatalogTv);
   }
 
-  const activeConfigs = [
-    `Language: ${language}`,
-    `TMDB Account: ${sessionId ? 'Connected' : 'Not Connected'}`,
-    `MDBList Integration: ${config.mdblistkey ? 'Connected' : 'Not Connected'}`,
-    `IMDb Integration: ${provideImdbId ? 'Enabled' : 'Disabled'}`,
-    `RPDB Integration: ${config.rpdbkey ? 'Enabled' : 'Disabled'}`,
-    `Search: ${config.searchEnabled !== "false" ? 'Enabled' : 'Disabled'}`,
-    `Active Catalogs: ${catalogs.length}`
-  ].join(' | ');
-
-  return {
+  const manifest = {
     id: packageJson.name,
     version: packageJson.version,
-    favicon: `${hostName}/favicon.png`,
-    logo: `${hostName}/logo.png`,
-    background: `${hostName}/background.png`,
-    name: "The Movie Database",
-    description: "Stremio addon that provides rich metadata for movies and TV shows from TMDB, featuring customizable catalogs, multi-language support, favorites lists, watchlist, ratings, and IMDb integration. Current settings: " + activeConfigs,
-    resources: ["catalog", "meta"],
+    name: packageJson.name,
+    description: packageJson.description,
+    icon: `${process.env.HOST_NAME}/favicon.png`,
+    background: `${process.env.HOST_NAME}/background.png`,
+    logo: `${process.env.HOST_NAME}/logo.png`,
+    resources: ["catalog", "meta", "stream", "manifest"],
     types: ["movie", "series"],
-    idPrefixes: provideImdbId ? ["tmdb:", "tt"] : ["tmdb:"],
-    stremioAddonsConfig,
-    behaviorHints: {
-      configurable: true,
-      configurationRequired: false
-    },
-    catalogs
+    idPrefixes: ["tt", "tmdb"],
+    catalogs: catalogs,
+    configurationRequired: false
   };
-}
-
-function getDefaultCatalogs() {
-  const defaultTypes = ['movie', 'series'];
-  const defaultCatalogs = Object.keys(CATALOG_TYPES.default);
-  return defaultCatalogs.flatMap(id =>
-    defaultTypes.map(type => ({
-      id: `tmdb.${id}`,
-      type,
-      showInHome: true
-    }))
-  );
-}
+  return manifest;
+};
 
 module.exports = { getManifest, DEFAULT_LANGUAGE };
