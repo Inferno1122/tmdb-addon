@@ -30,105 +30,47 @@ async function getSearch(type, language, query, config) {
         parameters.certification = type === "movie" ? "G" : "TV-G";
         break;
       case "PG":
-        parameters.certification = type === "movie" ? ["G", "PG"].join("|") : ["TV-G", "TV-PG"].join("|");
+        parameters.certification = type === "movie" ? "G|PG" : "TV-G|TV-PG";
         break;
       case "PG-13":
-        parameters.certification = type === "movie" ? ["G", "PG", "PG-13"].join("|") : ["TV-G", "TV-PG", "TV-14"].join("|");
+        parameters.certification = type === "movie" ? "G|PG|PG-13" : "TV-G|TV-PG|TV-14";
         break;
       case "R":
-        parameters.certification = type === "movie" ? ["G", "PG", "PG-13", "R"].join("|") : ["TV-G", "TV-PG", "TV-14", "TV-MA"].join("|");
+        parameters.certification = type === "movie" ? "G|PG|PG-13|R" : "TV-G|TV-PG|TV-14|TV-MA";
         break;
     }
   }
 
   if (type === "movie") {
-    const searchMovie = [];
+    const results = [];
 
-    await moviedb
-      .searchMovie(parameters)
-      .then((res) => {
-        res.results.forEach((el) => searchMovie.push(parseMedia(el, "movie", genreList)));
-      })
-      .catch(console.error);
+    await moviedb.searchMovie(parameters).then(res => {
+      res.results.forEach(el => results.push(parseMedia(el, "movie", genreList)));
+    }).catch(console.error);
 
-    if (searchMovie.length === 0) {
-      await moviedb
-        .searchMovie({ query: searchQuery, language, include_adult: config.includeAdult })
-        .then((res) => {
-          res.results.forEach((el) => searchMovie.push(parseMedia(el, "movie", genreList)));
-        })
-        .catch(console.error);
+    if (!results.length) {
+      await moviedb.searchMovie({ query: searchQuery, language, include_adult: config.includeAdult })
+        .then(res => {
+          res.results.forEach(el => results.push(parseMedia(el, "movie", genreList)));
+        }).catch(console.error);
     }
 
-    await moviedb
-      .searchPerson({ query: searchQuery, language })
-      .then(async (res) => {
-        if (res.results[0]) {
-          await moviedb
-            .personMovieCredits({ id: res.results[0].id, language })
-            .then((credits) => {
-              credits.cast.forEach((el) => {
-                if (!searchMovie.find((meta) => meta.id === `tmdb:${el.id}`)) {
-                  searchMovie.push(parseMedia(el, "movie", genreList));
-                }
-              });
-              credits.crew.forEach((el) => {
-                if (el.job === "Director" || el.job === "Writer") {
-                  if (!searchMovie.find((meta) => meta.id === `tmdb:${el.id}`)) {
-                    searchMovie.push(parseMedia(el, "movie", genreList));
-                  }
-                }
-              });
-            });
-        }
-      });
-
-    return searchMovie;
+    return results;
   } else {
-    const searchTv = [];
+    const results = [];
 
-    await moviedb
-      .searchTv(parameters)
-      .then((res) => {
-        res.results.forEach((el) => searchTv.push(parseMedia(el, "tv", genreList)));
-      })
-      .catch(console.error);
+    await moviedb.searchTv(parameters).then(res => {
+      res.results.forEach(el => results.push(parseMedia(el, "series", genreList)));
+    }).catch(console.error);
 
-    if (searchTv.length === 0) {
-      await moviedb
-        .searchTv({ query: searchQuery, language, include_adult: config.includeAdult })
-        .then((res) => {
-          res.results.forEach((el) => searchTv.push(parseMedia(el, "tv", genreList)));
-        })
-        .catch(console.error);
+    if (!results.length) {
+      await moviedb.searchTv({ query: searchQuery, language, include_adult: config.includeAdult })
+        .then(res => {
+          res.results.forEach(el => results.push(parseMedia(el, "series", genreList)));
+        }).catch(console.error);
     }
 
-    await moviedb
-      .searchPerson({ query: searchQuery, language })
-      .then(async (res) => {
-        if (res.results[0]) {
-          await moviedb
-            .personTvCredits({ id: res.results[0].id, language })
-            .then((credits) => {
-              credits.cast.forEach((el) => {
-                if (el.episode_count >= 5) {
-                  if (!searchTv.find((meta) => meta.id === `tmdb:${el.id}`)) {
-                    searchTv.push(parseMedia(el, "tv", genreList));
-                  }
-                }
-              });
-              credits.crew.forEach((el) => {
-                if (el.job === "Director" || el.job === "Writer") {
-                  if (!searchTv.find((meta) => meta.id === `tmdb:${el.id}`)) {
-                    searchTv.push(parseMedia(el, "tv", genreList));
-                  }
-                }
-              });
-            });
-        }
-      });
-
-    return searchTv;
+    return results;
   }
 }
 
