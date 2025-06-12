@@ -10,7 +10,6 @@ const redis = Redis.fromEnv();
 async function cacheWrap(key, ttl, fn) {
   try {
     const cached = await redis.get(key);
-
     if (typeof cached === 'string') {
       try {
         const parsed = JSON.parse(cached);
@@ -20,12 +19,9 @@ async function cacheWrap(key, ttl, fn) {
         console.warn(`[Redis] Invalid JSON in cache for ${key}, ignoring`);
       }
     }
-
     console.log(`[Redis] MISS: ${key}`);
     const result = await fn();
-
     await redis.set(key, JSON.stringify(result), { ex: ttl });
-
     return result;
   } catch (err) {
     console.warn(`[Redis] Cache error for ${key}:`, err);
