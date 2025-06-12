@@ -1,6 +1,7 @@
 const express = require("express");
 const compression = require("compression");
 const path = require("path");
+
 const analytics = require("./utils/analytics");
 const { getCatalog } = require("./lib/getCatalog");
 const { getSearch } = require("./lib/getSearch");
@@ -40,7 +41,7 @@ addon.get("/:cfg?/manifest.json", async (req, res) => {
   respond(res, manifest, { sMaxAge: 3600 });
 });
 
-addon.get("/:cfg?/catalog/:type/:id", async (req, res) => {
+addon.get("/:cfg?/catalog/:type/:id/:extra?.json", async (req, res) => {
   const { cfg, type, id } = req.params;
   const params = req.query;
   const config = parseConfig(cfg);
@@ -57,6 +58,10 @@ addon.get("/:cfg?/catalog/:type/:id", async (req, res) => {
       metas = await cacheWrapCatalog(`trending:${type}:${language}:${page}:${params.genre || ""}`, () =>
         getTrending(type, language, page, params.genre)
       );
+    } else if (id === "tmdb.favorites") {
+      metas = await getFavorites(type, language, page, params.genre, config.sessionId);
+    } else if (id === "tmdb.watchlist") {
+      metas = await getWatchList(type, language, page, params.genre, config.sessionId);
     } else {
       metas = await cacheWrapCatalog(`catalog:${type}:${language}:${id}:${page}:${params.genre || ""}`, () =>
         getCatalog(type, language, page, id, params.genre, config)
