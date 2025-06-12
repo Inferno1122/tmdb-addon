@@ -13,10 +13,9 @@
     { "src": "^/meta/.*$", "dest": "/api/server.js" },
     { "src": "^/(.*)/stream/.*$", "dest": "/api/server.js" },
     { "src": "^/stream/.*$", "dest": "/api/server.js" },
-
     { "src": "^/configure$", "dest": "/dist/index.html" },
     { "src": "^/configure/.*$", "dest": "/dist/index.html" },
-
-    { "src": "^/(.*)$", "dest": "/dist/$1" }
+    { "src": "^/$", "dest": "/dist/index.html" },
+    { "src": "^(?!/api/).*$", "dest": "/dist/$1" }
   ]
 }
