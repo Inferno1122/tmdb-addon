@@ -29,7 +29,6 @@ function setOrderLanguage(language, languagesArray) {
 function loadTranslations(language) {
   const defaultTranslations = catalogsTranslations[DEFAULT_LANGUAGE] || {};
   const selectedTranslations = catalogsTranslations[language] || {};
-
   return { ...defaultTranslations, ...selectedTranslations };
 }
 
@@ -37,25 +36,26 @@ function createCatalog(id, type, catalogDef, options, tmdbPrefix, translatedCata
   const extra = [];
 
   if (catalogDef.extraSupported.includes("genre")) {
-    if (catalogDef.defaultOptions) {
-      const formattedOptions = catalogDef.defaultOptions.map(option => {
-        if (option.includes('.')) {
-          const [field, order] = option.split('.');
-          if (translatedCatalogs[field] && translatedCatalogs[order]) {
-            return `${translatedCatalogs[field]} (${translatedCatalogs[order]})`;
+    const formattedOptions = catalogDef.defaultOptions
+      ? catalogDef.defaultOptions.map(option => {
+          if (option.includes('.')) {
+            const [field, order] = option.split('.');
+            if (translatedCatalogs[field] && translatedCatalogs[order]) {
+              return `${translatedCatalogs[field]} (${translatedCatalogs[order]})`;
+            }
+            return option;
           }
-          return option;
-        }
-        return translatedCatalogs[option] || option;
-      });
-      extra.push({ name: "genre", options: formattedOptions, isRequired: showInHome ? false : true });
-    } else {
-      extra.push({ name: "genre", options, isRequired: showInHome ? false : true });
-    }
+          return translatedCatalogs[option] || option;
+        })
+      : Array.isArray(options) ? options : [];
+
+    extra.push({ name: "genre", options: formattedOptions, isRequired: showInHome ? false : true });
   }
+
   if (catalogDef.extraSupported.includes("search")) {
     extra.push({ name: "search" });
   }
+
   if (catalogDef.extraSupported.includes("skip")) {
     extra.push({ name: "skip" });
   }
@@ -71,38 +71,30 @@ function createCatalog(id, type, catalogDef, options, tmdbPrefix, translatedCata
 
 function getCatalogDefinition(catalogId) {
   const [provider, type] = catalogId.split('.');
-
   for (const category of Object.keys(CATALOG_TYPES)) {
     if (CATALOG_TYPES[category][type]) {
       return CATALOG_TYPES[category][type];
     }
   }
-
   return null;
 }
 
 function getOptionsForCatalog(catalogDef, type, showInHome, { years, genres_movie, genres_series, filterLanguages }) {
   if (catalogDef.defaultOptions) return catalogDef.defaultOptions;
-
   const movieGenres = showInHome ? [...genres_movie] : ["Top", ...genres_movie];
   const seriesGenres = showInHome ? [...genres_series] : ["Top", ...genres_series];
 
   switch (catalogDef.nameKey) {
-    case 'year':
-      return years;
-    case 'language':
-      return filterLanguages;
-    case 'popular':
-      return type === 'movie' ? movieGenres : seriesGenres;
-    default:
-      return type === 'movie' ? movieGenres : seriesGenres;
+    case 'year': return years;
+    case 'language': return filterLanguages;
+    case 'popular': return type === 'movie' ? movieGenres : seriesGenres;
+    default: return type === 'movie' ? movieGenres : seriesGenres;
   }
 }
 
 async function createMDBListCatalog(userCatalog, mdblistKey) {
   const listId = userCatalog.id.split(".")[1];
   const genres = await getGenresFromMDBList(listId, mdblistKey);
-
   return {
     id: userCatalog.id,
     type: userCatalog.type,
@@ -123,23 +115,15 @@ async function getManifest(config) {
   const sessionId = config.sessionId;
   const userCatalogs = config.catalogs || getDefaultCatalogs();
   const translatedCatalogs = loadTranslations(language);
+  const hostName = process.env.HOST_NAME || 'https://tmdb-addon-five.vercel.app';
 
   const stremioAddonsConfig = {
-    issuer: "https://stremio-addons.net",
-    signature: "eyJhbGciOiJkaXIiLCJlbmMiOiJBMTI4Q0JDLUhTMjU2In0..DTiTHmYyIbuTMPJB35cqsw.S2C6xuCL9OoHJbtX97v-2w3IM4iFqr2Qy4xRRlvyzIY2fZAcwmm6JUMdsc2LSTigIPQeGPomaqX53ECt23cJKuH-IKs4hHLH4sLYRZNL_VC0YefQNrWjMRZ75Yz-bVx3.DJZBtIb1bOCq6Z62AMUGvw"
-  }
+    issuer: "https://stremio-addons.net"
+  };
 
   const years = generateArrayOfYears(20);
-  const genres_movie = await getGenreList(language, "movie").then(genres => {
-    const sortedGenres = genres.map(el => el.name).sort();
-    return sortedGenres;
-  });
-
-  const genres_series = await getGenreList(language, "series").then(genres => {
-    const sortedGenres = genres.map(el => el.name).sort();
-    return sortedGenres;
-  });
-
+  const genres_movie = await getGenreList(language, "movie").then(genres => genres.map(el => el.name).sort());
+  const genres_series = await getGenreList(language, "series").then(genres => genres.map(el => el.name).sort());
   const languagesArray = await getLanguages();
   const filterLanguages = setOrderLanguage(language, languagesArray);
   const isMDBList = (id) => id.startsWith("mdblist.");
@@ -159,7 +143,6 @@ async function getManifest(config) {
       }
       const catalogDef = getCatalogDefinition(userCatalog.id);
       const catalogOptions = getOptionsForCatalog(catalogDef, userCatalog.type, userCatalog.showInHome, options);
-
       return createCatalog(
         userCatalog.id,
         userCatalog.type,
@@ -170,6 +153,8 @@ async function getManifest(config) {
         userCatalog.showInHome
       );
     }));
+
+  catalogs = catalogs.filter(Boolean);
 
   if (config.searchEnabled !== "false") {
     const searchCatalogMovie = {
@@ -202,9 +187,9 @@ async function getManifest(config) {
   return {
     id: packageJson.name,
     version: packageJson.version,
-    favicon: `${process.env.HOST_NAME}/favicon.png`,
-    logo: `${process.env.HOST_NAME}/logo.png`,
-    background: `${process.env.HOST_NAME}/background.png`,
+    favicon: `${hostName}/favicon.png`,
+    logo: `${hostName}/logo.png`,
+    background: `${hostName}/background.png`,
     name: "The Movie Database",
     description: "Stremio addon that provides rich metadata for movies and TV shows from TMDB, featuring customizable catalogs, multi-language support, favorites lists, watchlist, ratings, and IMDb integration. Current settings: " + activeConfigs,
     resources: ["catalog", "meta"],
@@ -213,16 +198,15 @@ async function getManifest(config) {
     stremioAddonsConfig,
     behaviorHints: {
       configurable: true,
-      configurationRequired: false,
+      configurationRequired: false
     },
-    catalogs,
+    catalogs
   };
 }
 
 function getDefaultCatalogs() {
   const defaultTypes = ['movie', 'series'];
   const defaultCatalogs = Object.keys(CATALOG_TYPES.default);
-
   return defaultCatalogs.flatMap(id =>
     defaultTypes.map(type => ({
       id: `tmdb.${id}`,
