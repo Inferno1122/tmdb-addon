@@ -1,20 +1,19 @@
-import { Redis } from '@upstash/redis';
+const { Redis } = require('@upstash/redis');
 
 const PREFIX = 'tmdb-addon';
-
-const META_TTL = Number(process.env.META_TTL ?? 7 * 24 * 60 * 60);      // 7 days
-const CATALOG_TTL = Number(process.env.CATALOG_TTL ?? 1 * 24 * 60 * 60); // 1 day
-const RPDB_TTL = Number(process.env.RPDB_TTL ?? 7 * 24 * 60 * 60);      // 7 days
+const META_TTL = Number(process.env.META_TTL ?? 7 * 24 * 60 * 60);      // default 7 days
+const CATALOG_TTL = Number(process.env.CATALOG_TTL ?? 1 * 24 * 60 * 60); // default 1 day
+const RPDB_TTL = Number(process.env.RPDB_TTL ?? 7 * 24 * 60 * 60);      // default 7 days
 
 const redis = Redis.fromEnv();
 
-async function cacheWrap<T>(key: string, ttl: number, fn: () => Promise<T>): Promise<T> {
+async function cacheWrap(key, ttl, fn) {
   try {
-    const cached = await redis.get<string>(key);
+    const cached = await redis.get(key);
 
     if (typeof cached === 'string') {
       try {
-        const parsed = JSON.parse(cached) as T;
+        const parsed = JSON.parse(cached);
         console.log(`[Redis] HIT: ${key}`);
         return parsed;
       } catch (e) {
@@ -25,7 +24,6 @@ async function cacheWrap<T>(key: string, ttl: number, fn: () => Promise<T>): Pro
     console.log(`[Redis] MISS: ${key}`);
     const result = await fn();
 
-    // Only cache serializable objects (prevent "[object Object]" issue)
     if (typeof result === 'object' && result !== null) {
       await redis.set(key, JSON.stringify(result), { ex: ttl });
     }
@@ -37,11 +35,8 @@ async function cacheWrap<T>(key: string, ttl: number, fn: () => Promise<T>): Pro
   }
 }
 
-export const cacheWrapMeta = <T>(id: string, fn: () => Promise<T>) =>
-  cacheWrap(`${PREFIX}:meta:${id}`, META_TTL, fn);
-
-export const cacheWrapCatalog = <T>(id: string, fn: () => Promise<T>) =>
-  cacheWrap(`${PREFIX}:catalog:${id}`, CATALOG_TTL, fn);
-
-export const cacheWrapRpdb = <T>(id: string, fn: () => Promise<T>) =>
-  cacheWrap(`${PREFIX}:rpdb:${id}`, RPDB_TTL, fn);
+module.exports = {
+  cacheWrapMeta: (id, fn) => cacheWrap(`${PREFIX}:meta:${id}`, META_TTL, fn),
+  cacheWrapCatalog: (id, fn) => cacheWrap(`${PREFIX}:catalog:${id}`, CATALOG_TTL, fn),
+  cacheWrapRpdb: (id, fn) => cacheWrap(`${PREFIX}:rpdb:${id}`, RPDB_TTL, fn),
+};
