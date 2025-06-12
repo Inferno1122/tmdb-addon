@@ -38,7 +38,7 @@ addon.get("/:cfg?/manifest.json", async (req, res) => {
   const config = parseConfig(cfg);
   const manifest = await getManifest(config);
   respond(res, manifest, {
-    cacheControl: "public, max-age=3600, stale-while-revalidate=604800, stale-if-error=86400",
+    cacheControl: "public, max-age=3600, stale-while-revalidate=604800, stale-if-error=86400"
   });
 });
 
@@ -52,19 +52,19 @@ addon.get("/:cfg?/catalog/:type/:id/:extra?.json", async (req, res) => {
   const search = query.get("search");
   const genre = query.get("genre");
 
-  let result;
+  let metas;
 
   try {
     if (search) {
-      result = await cacheWrapCatalog(`search:${type}:${language}:${search}`, () =>
+      metas = await cacheWrapCatalog(`search:${type}:${language}:${search}`, () =>
         getSearch(type, language, search, config)
       );
     } else if (id === "tmdb.trending") {
-      result = await cacheWrapCatalog(`trending:${type}:${language}:${page}:${genre}`, () =>
+      metas = await cacheWrapCatalog(`trending:${type}:${language}:${page}:${genre}`, () =>
         getTrending(type, language, page, genre)
       );
     } else {
-      result = await cacheWrapCatalog(`catalog:${type}:${language}:${id}:${page}:${genre}`, () =>
+      metas = await cacheWrapCatalog(`catalog:${type}:${language}:${id}:${page}:${genre}`, () =>
         getCatalog(type, language, page, id, genre, config)
       );
     }
@@ -72,10 +72,8 @@ addon.get("/:cfg?/catalog/:type/:id/:extra?.json", async (req, res) => {
     return res.status(404).send("Not found");
   }
 
-  const metasArray = Array.isArray(result?.metas) ? result.metas : Array.isArray(result) ? result : [];
-
-  respond(res, { metas: metasArray }, {
-    cacheControl: "public, max-age=86400, stale-while-revalidate=604800, stale-if-error=86400",
+  respond(res, { metas }, {
+    cacheControl: "public, max-age=86400, stale-while-revalidate=604800, stale-if-error=86400"
   });
 });
 
@@ -92,13 +90,13 @@ addon.get("/:cfg?/meta/:type/:id.json", async (req, res) => {
   );
 
   respond(res, data, {
-    cacheControl: "public, max-age=1209600, stale-while-revalidate=604800, stale-if-error=86400",
+    cacheControl: "public, max-age=1209600, stale-while-revalidate=604800, stale-if-error=86400"
   });
 });
 
 addon.get("/:cfg?/stream/:type/:id.json", (_, res) => {
   respond(res, { streams: [] }, {
-    cacheControl: "public, max-age=86400",
+    cacheControl: "public, max-age=86400"
   });
 });
 
