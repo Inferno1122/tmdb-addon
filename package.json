@@ -49,6 +49,7 @@
     "lodash.debounce": "^4.0.8",
     "moviedb-promise": "^4.0.7",
     "framer-motion": "^12.0.6",
+    "lucide-react": "^0.462.0",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
     "react-kofi": "^0.0.2",
