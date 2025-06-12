@@ -3,13 +3,6 @@ const path = require("path");
 const favicon = require("serve-favicon");
 const compression = require("compression");
 
-const addon = express();
-
-addon.use(compression());
-addon.use(favicon(path.join(__dirname, "../public/favicon.png")));
-addon.use(express.static(path.join(__dirname, "../public")));
-addon.use(express.static(path.join(__dirname, "../dist")));
-
 const { getCatalog } = require("./lib/getCatalog");
 const { getMeta } = require("./lib/getMeta");
 const { getManifest, DEFAULT_LANGUAGE } = require("./lib/getManifest");
@@ -18,6 +11,13 @@ const { getTrending } = require("./lib/getTrending");
 const { getTmdb } = require("./lib/getTmdb");
 const { parseConfig } = require("./utils/parseProps");
 const { cacheWrapMeta, cacheWrapCatalog } = require("./lib/getCache");
+
+const addon = express();
+
+addon.use(compression());
+addon.use(favicon(path.join(__dirname, "../public/favicon.png")));
+addon.use(express.static(path.join(__dirname, "../public")));
+addon.use(express.static(path.join(__dirname, "../dist")));
 
 const respond = (res, data, headers = {}) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -29,6 +29,7 @@ const respond = (res, data, headers = {}) => {
 };
 
 addon.get("/", (_, res) => res.redirect("/configure"));
+
 addon.get("/configure", (_, res) =>
   res.sendFile(path.join(__dirname, "../dist/index.html"))
 );
@@ -38,7 +39,7 @@ addon.get("/:cfg?/manifest.json", async (req, res) => {
   const config = parseConfig(cfg);
   const manifest = await getManifest(config);
   respond(res, manifest, {
-    cacheControl: "public, max-age=3600, stale-while-revalidate=604800, stale-if-error=86400"
+    cacheControl: "public, max-age=3600, stale-while-revalidate=604800, stale-if-error=86400",
   });
 });
 
@@ -56,9 +57,8 @@ addon.get("/:cfg?/catalog/:type/:id/:extra?.json", async (req, res) => {
 
   try {
     if (search) {
-      metas = await cacheWrapCatalog(`search:${type}:${language}:${search}`, () =>
-        getSearch(type, language, search, config)
-      );
+      const results = await getSearch(type, language, search, config);
+      metas = { metas: results };
     } else if (id === "tmdb.trending") {
       metas = await cacheWrapCatalog(`trending:${type}:${language}:${page}:${genre}`, () =>
         getTrending(type, language, page, genre)
@@ -72,8 +72,8 @@ addon.get("/:cfg?/catalog/:type/:id/:extra?.json", async (req, res) => {
     return res.status(404).send("Not found");
   }
 
-  respond(res, { metas }, {
-    cacheControl: "public, max-age=86400, stale-while-revalidate=604800, stale-if-error=86400"
+  respond(res, metas, {
+    cacheControl: "public, max-age=86400, stale-while-revalidate=604800, stale-if-error=86400",
   });
 });
 
@@ -90,13 +90,13 @@ addon.get("/:cfg?/meta/:type/:id.json", async (req, res) => {
   );
 
   respond(res, data, {
-    cacheControl: "public, max-age=1209600, stale-while-revalidate=604800, stale-if-error=86400"
+    cacheControl: "public, max-age=1209600, stale-while-revalidate=604800, stale-if-error=86400",
   });
 });
 
 addon.get("/:cfg?/stream/:type/:id.json", (_, res) => {
   respond(res, { streams: [] }, {
-    cacheControl: "public, max-age=86400"
+    cacheControl: "public, max-age=86400",
   });
 });
 
