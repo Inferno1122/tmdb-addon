@@ -7,15 +7,18 @@
   "routes": [
     { "src": "^/(.*)/manifest.json$", "dest": "/api/server.js" },
     { "src": "^/manifest.json$", "dest": "/api/server.js" },
-    { "src": "^/(.*)/catalog/.*$", "dest": "/api/server.js" },
-    { "src": "^/catalog/.*$", "dest": "/api/server.js" },
-    { "src": "^/(.*)/meta/.*$", "dest": "/api/server.js" },
-    { "src": "^/meta/.*$", "dest": "/api/server.js" },
-    { "src": "^/(.*)/stream/.*$", "dest": "/api/server.js" },
-    { "src": "^/stream/.*$", "dest": "/api/server.js" },
+    { "src": "^/(.*)/catalog/.*\\.json$", "dest": "/api/server.js" },
+    { "src": "^/catalog/.*\\.json$", "dest": "/api/server.js" },
+    { "src": "^/(.*)/meta/.*\\.json$", "dest": "/api/server.js" },
+    { "src": "^/meta/.*\\.json$", "dest": "/api/server.js" },
+    { "src": "^/(.*)/stream/.*\\.json$", "dest": "/api/server.js" },
+    { "src": "^/stream/.*\\.json$", "dest": "/api/server.js" },
+
     { "src": "^/configure$", "dest": "/dist/index.html" },
     { "src": "^/configure/.*$", "dest": "/dist/index.html" },
     { "src": "^/$", "dest": "/dist/index.html" },
-    { "src": "^(?!/api/).*$", "dest": "/dist/$1" }
+
+    { "handle": "filesystem" },
+    { "src": ".*", "dest": "/api/server.js" }
   ]
 }
