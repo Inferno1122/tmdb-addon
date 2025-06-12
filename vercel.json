@@ -1,18 +1,17 @@
 {
   "version": 2,
   "builds": [
-    { "src": "api/server.js", "use": "@vercel/node" },
-    { "src": "package.json", "use": "@vercel/static-build", "config": { "distDir": "dist" } }
+    { "src": "dist/manifest.json", "use": "@vercel/static" },
+    { "src": "package.json", "use": "@vercel/static-build", "config": { "distDir": "dist" } },
+    { "src": "api/server.js", "use": "@vercel/node" }
   ],
   "routes": [
-    { "src": "/(.*)/manifest.json", "dest": "/api/server.js" },
-    { "src": "/manifest.json", "dest": "/api/server.js" },
-    { "src": "/(.*)/catalog/.*", "dest": "/api/server.js" },
+    { "src": "/manifest.json", "dest": "/manifest.json" },
     { "src": "/catalog/.*", "dest": "/api/server.js" },
-    { "src": "/(.*)/meta/.*", "dest": "/api/server.js" },
     { "src": "/meta/.*", "dest": "/api/server.js" },
-    { "src": "/(.*)/stream/.*", "dest": "/api/server.js" },
     { "src": "/stream/.*", "dest": "/api/server.js" },
-    { "src": "/(.*)", "dest": "/dist/$1" }
+    { "src": "/configure/(.*)", "dest": "/dist/$1" },
+    { "src": "/configure", "dest": "/dist/index.html" },
+    { "src": "/(.*)", "dest": "/api/server.js" }
   ]
 }
