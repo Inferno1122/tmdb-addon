@@ -4,9 +4,9 @@ import path from "path";
 
 export default defineConfig(() => ({
   plugins: [react()],
-  base: '/', // Main fix: assets will be at root
+  base: "/",
   build: {
-    outDir: 'dist',
+    outDir: "dist",
     emptyOutDir: true,
   },
   resolve: {
