@@ -1,9 +1,9 @@
 const { Redis } = require('@upstash/redis');
 
 const PREFIX = 'tmdb-addon';
-const META_TTL = Number(process.env.META_TTL ?? 7 * 24 * 60 * 60);      // default 7 days
-const CATALOG_TTL = Number(process.env.CATALOG_TTL ?? 1 * 24 * 60 * 60); // default 1 day
-const RPDB_TTL = Number(process.env.RPDB_TTL ?? 7 * 24 * 60 * 60);      // default 7 days
+const META_TTL = Number(process.env.META_TTL ?? 7 * 24 * 60 * 60);      // 7 days
+const CATALOG_TTL = Number(process.env.CATALOG_TTL ?? 1 * 24 * 60 * 60); // 1 day
+const RPDB_TTL = Number(process.env.RPDB_TTL ?? 7 * 24 * 60 * 60);      // 7 days
 
 const redis = Redis.fromEnv();
 
@@ -24,9 +24,7 @@ async function cacheWrap(key, ttl, fn) {
     console.log(`[Redis] MISS: ${key}`);
     const result = await fn();
 
-    if (typeof result === 'object' && result !== null) {
-      await redis.set(key, JSON.stringify(result), { ex: ttl });
-    }
+    await redis.set(key, JSON.stringify(result), { ex: ttl });
 
     return result;
   } catch (err) {
