@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "dev:server": "nodemon addon/server.js",
-    "build": "vite build",
+    "build": "vite build && node scripts/generateManifest.js",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
