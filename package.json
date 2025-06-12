@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "dev:server": "nodemon addon/server.js",
-    "build": "vite build && node scripts/generateManifest.js",
+    "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
@@ -46,6 +46,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.0.0",
+    "compression": "^1.7.4",
     "dotenv": "^16.5.0",
     "express": "^4.21.2",
     "fanart.tv-api": "^1.0.3",
@@ -64,7 +65,6 @@
     "tailwind-merge": "^2.5.2",
     "transliteration": "^2.3.5",
     "url-exists": "^1.0.3"
-    "compression": "^1.7.4"
   },
   "devDependencies": {
     "@eslint/js": "^9.9.0",
