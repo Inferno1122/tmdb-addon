@@ -1,8 +1,8 @@
 const express = require("express");
-const favicon = require('serve-favicon');
+const favicon = require("serve-favicon");
 const path = require("path");
 const addon = express();
-const analytics = require('./utils/analytics');
+const analytics = require("./utils/analytics");
 const { getCatalog } = require("./lib/getCatalog");
 const { getSearch } = require("./lib/getSearch");
 const { getManifest, DEFAULT_LANGUAGE } = require("./lib/getManifest");
@@ -13,32 +13,35 @@ const { getTrending } = require("./lib/getTrending");
 const { parseConfig, getRpdbPoster, checkIfExists } = require("./utils/parseProps");
 const { getRequestToken, getSessionId } = require("./lib/getSession");
 const { getFavorites, getWatchList } = require("./lib/getPersonalLists");
-const { blurImage } = require('./utils/imageProcessor');
+const { blurImage } = require("./utils/imageProcessor");
+
+const safeParseConfig = (input) => {
+  try {
+    if (!input) return {};
+    return JSON.parse(decodeURIComponent(input));
+  } catch (e) {
+    return {};
+  }
+};
 
 addon.use(analytics.middleware);
-addon.use(favicon(path.join(__dirname, '../public/favicon.png')));
-addon.use(express.static(path.join(__dirname, '../public')));
-addon.use(express.static(path.join(__dirname, '../dist')));
+addon.use(favicon(path.join(__dirname, "../public/favicon.png")));
+addon.use(express.static(path.join(__dirname, "../public")));
+addon.use(express.static(path.join(__dirname, "../dist")));
 
-const getCacheHeaders = function (opts) {
-  opts = opts || {};
-  if (!Object.keys(opts).length) return false;
-  let cacheHeaders = {
+const getCacheHeaders = (opts = {}) => {
+  const headers = {
     cacheMaxAge: "max-age",
     staleRevalidate: "stale-while-revalidate",
     staleError: "stale-if-error",
   };
-  return Object.keys(cacheHeaders)
-    .map((prop) => {
-      const value = opts[prop];
-      if (!value) return false;
-      return cacheHeaders[prop] + "=" + value;
-    })
-    .filter((val) => !!val)
+  return Object.keys(headers)
+    .map((key) => opts[key] ? `${headers[key]}=${opts[key]}` : null)
+    .filter(Boolean)
     .join(", ");
 };
 
-const respond = function (res, data, opts) {
+const respond = (res, data, opts = {}) => {
   const cacheControl = getCacheHeaders(opts);
   if (cacheControl) res.setHeader("Cache-Control", `${cacheControl}, public`);
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -47,47 +50,35 @@ const respond = function (res, data, opts) {
   res.send(data);
 };
 
-addon.get("/", function (_, res) {
-  res.redirect("/configure");
+addon.get("/", (_, res) => res.redirect("/configure"));
+
+addon.get("/configure", (_, res) =>
+  res.sendFile(path.join(__dirname, "../dist/index.html"))
+);
+
+addon.get("/request_token", async (req, res) => {
+  const token = await getRequestToken();
+  respond(res, token);
 });
 
-addon.get("/request_token", async function (req, res) {
-  const requestToken = await getRequestToken();
-  respond(res, requestToken);
-});
-
-addon.get("/session_id", async function (req, res) {
-  const requestToken = req.query.request_token;
-  const sessionId = await getSessionId(requestToken);
+addon.get("/session_id", async (req, res) => {
+  const sessionId = await getSessionId(req.query.request_token);
   respond(res, sessionId);
 });
 
-addon.use('/configure', express.static(path.join(__dirname, '../dist')));
-
-addon.use('/configure', (req, res, next) => {
-  const config = parseConfig(req.params.catalogChoices);
-  next();
-});
-
-addon.get('/:catalogChoices?/configure', function (req, res) {
-  res.sendFile(path.join(__dirname, '../dist/index.html'));
-});
-
-addon.get("/:catalogChoices?/manifest.json", async function (req, res) {
-  const { catalogChoices } = req.params;
-  const config = parseConfig(catalogChoices);
+addon.get("/:catalogChoices?/manifest.json", async (req, res) => {
+  const config = safeParseConfig(req.params.catalogChoices);
   const manifest = await getManifest(config);
-  const cacheOpts = {
-    cacheMaxAge: 12 * 60 * 60,
-    staleRevalidate: 14 * 24 * 60 * 60,
-    staleError: 30 * 24 * 60 * 60,
-  };
-  respond(res, manifest, cacheOpts);
+  respond(res, manifest, {
+    cacheMaxAge: 43200,
+    staleRevalidate: 1209600,
+    staleError: 2592000,
+  });
 });
 
-addon.get("/:catalogChoices?/catalog/:type/:id/:extra?.json", async function (req, res) {
-  const { catalogChoices, type, id, extra } = req.params;
-  const config = parseConfig(catalogChoices);
+addon.get("/:catalogChoices?/catalog/:type/:id/:extra?.json", async (req, res) => {
+  const { catalogChoices, type, id } = req.params;
+  const config = safeParseConfig(catalogChoices);
   const language = config.language || DEFAULT_LANGUAGE;
   const rpdbkey = config.rpdbkey;
   const sessionId = config.sessionId;
@@ -96,10 +87,12 @@ addon.get("/:catalogChoices?/catalog/:type/:id/:extra?.json", async function (re
   const skip = parseInt(req.query.skip || "0");
   const page = Math.ceil(skip / 20) + 1;
   let metas = [];
+
   try {
     const args = [type, language, page];
     if (search) {
-      metas = await getSearch(type, language, search, config);
+      const searchResults = await getSearch(type, language, search, config);
+      metas = searchResults.metas || [];
     } else {
       switch (id) {
         case "tmdb.trending":
@@ -117,116 +110,89 @@ addon.get("/:catalogChoices?/catalog/:type/:id/:extra?.json", async function (re
       }
     }
   } catch (e) {
-    res.status(404).send((e || {}).message || "Not found");
-    return;
+    return res.status(404).send(e.message || "Not found");
   }
-  const cacheOpts = {
-    cacheMaxAge: 1 * 24 * 60 * 60,
-    staleRevalidate: 7 * 24 * 60 * 60,
-    staleError: 14 * 24 * 60 * 60,
-  };
+
   if (rpdbkey) {
     try {
       metas = JSON.parse(JSON.stringify(metas));
-      metas.metas = await Promise.all(metas.metas.map(async (el) => {
-        const rpdbImage = getRpdbPoster(type, el.id.replace('tmdb:', ''), language, rpdbkey);
-        el.poster = await checkIfExists(rpdbImage) ? rpdbImage : el.poster;
-        return el;
-      }));
-    } catch (e) {}
+      metas = await Promise.all(
+        metas.map(async (el) => {
+          const rpdbImage = getRpdbPoster(type, el.id.replace("tmdb:", ""), language, rpdbkey);
+          el.poster = (await checkIfExists(rpdbImage)) ? rpdbImage : el.poster;
+          return el;
+        })
+      );
+    } catch {}
   }
-  let result = metas;
-  if (!metas.hasOwnProperty('metas')) {
-    result = { metas: metas };
-  }
-  respond(res, result, cacheOpts);
+
+  respond(res, { metas }, {
+    cacheMaxAge: 86400,
+    staleRevalidate: 604800,
+    staleError: 1209600,
+  });
 });
 
-addon.get("/:catalogChoices?/meta/:type/:id.json", async function (req, res) {
+addon.get("/:catalogChoices?/meta/:type/:id.json", async (req, res) => {
   const { catalogChoices, type, id } = req.params;
-  const config = parseConfig(catalogChoices);
-  const tmdbId = id.split(":")[1];
+  const config = safeParseConfig(catalogChoices);
   const language = config.language || DEFAULT_LANGUAGE;
   const rpdbkey = config.rpdbkey;
-  const imdbId = req.params.id.split(":")[0];
+  const imdbId = id.split(":")[0];
+  const tmdbId = id.split(":")[1];
 
-  if (req.params.id.includes("tmdb:")) {
-    const resp = await cacheWrapMeta(`${language}:${type}:${tmdbId}`, async () => {
-      return await getMeta(type, language, tmdbId, rpdbkey, {
-        hideEpisodeThumbnails: config.hideEpisodeThumbnails === "true"
-      });
-    });
-    const cacheOpts = {
-      staleRevalidate: 20 * 24 * 60 * 60,
-      staleError: 30 * 24 * 60 * 60,
-    };
-    if (type == "movie") {
-      cacheOpts.cacheMaxAge = 14 * 24 * 60 * 60;
-    } else if (type == "series") {
-      const hasEnded = !!((resp.releaseInfo || "").length > 5);
-      cacheOpts.cacheMaxAge = (hasEnded ? 14 : 1) * 24 * 60 * 60;
-    }
-    respond(res, resp, cacheOpts);
+  const cacheOpts = {
+    staleRevalidate: 1728000,
+    staleError: 2592000,
+    cacheMaxAge: type === "movie" ? 1209600 : 86400,
+  };
+
+  if (id.includes("tmdb:")) {
+    const resp = await cacheWrapMeta(`${language}:${type}:${tmdbId}`, () =>
+      getMeta(type, language, tmdbId, rpdbkey, {
+        hideEpisodeThumbnails: config.hideEpisodeThumbnails === "true",
+      })
+    );
+    return respond(res, resp, cacheOpts);
   }
-  if (req.params.id.includes("tt")) {
-    const tmdbId = await getTmdb(type, imdbId);
-    if (tmdbId) {
-      const resp = await cacheWrapMeta(`${language}:${type}:${tmdbId}`, async () => {
-        return await getMeta(type, language, tmdbId, rpdbkey, {
-          hideEpisodeThumbnails: config.hideEpisodeThumbnails === "true"
-        });
-      });
-      const cacheOpts = {
-        staleRevalidate: 20 * 24 * 60 * 60,
-        staleError: 30 * 24 * 60 * 60,
-      };
-      if (type == "movie") {
-        cacheOpts.cacheMaxAge = 14 * 24 * 60 * 60;
-      } else if (type == "series") {
-        const hasEnded = !!((resp.releaseInfo || "").length > 5);
-        cacheOpts.cacheMaxAge = (hasEnded ? 14 : 1) * 24 * 60 * 60;
-      }
-      respond(res, resp, cacheOpts);
-    } else {
-      respond(res, { meta: {} });
+
+  if (id.includes("tt")) {
+    const resolved = await getTmdb(type, imdbId);
+    if (resolved) {
+      const resp = await cacheWrapMeta(`${language}:${type}:${resolved}`, () =>
+        getMeta(type, language, resolved, rpdbkey, {
+          hideEpisodeThumbnails: config.hideEpisodeThumbnails === "true",
+        })
+      );
+      return respond(res, resp, cacheOpts);
     }
+    return respond(res, { meta: {} });
+  }
+
+  respond(res, { meta: {} });
+});
+
+addon.get("/api/image/blur", async (req, res) => {
+  const url = req.query.url;
+  if (!url) return res.status(400).json({ error: "Missing image URL" });
+
+  try {
+    const buf = await blurImage(url);
+    if (!buf) return res.status(500).json({ error: "Image processing failed" });
+    res.setHeader("Content-Type", "image/jpeg");
+    res.setHeader("Cache-Control", "public, max-age=31536000");
+    res.send(buf);
+  } catch {
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
-addon.get("/api/image/blur", async function (req, res) {
-  const imageUrl = req.query.url;
-  if (!imageUrl) {
-    return res.status(400).json({ error: 'URL da imagem não fornecida' });
-  }
-  try {
-    const blurredImageBuffer = await blurImage(imageUrl);
-    if (!blurredImageBuffer) {
-      return res.status(500).json({ error: 'Erro ao processar imagem' });
-    }
-    res.setHeader('Content-Type', 'image/jpeg');
-    res.setHeader('Cache-Control', 'public, max-age=31536000');
-    res.send(blurredImageBuffer);
-  } catch (error) {
-    console.error('Erro na rota de blur:', error);
-    res.status(500).json({ error: 'Erro interno do servidor' });
-  }
-});
-
-addon.get("/:catalogChoices?/stream/:type/:id.json", async function (req, res) {
-  const { catalogChoices, type, id } = req.params;
-  const config = parseConfig(catalogChoices);
-  try {
-    const streams = [
-      {
-        title: "Sample Video",
-        url: "https://sample-videos.com/video123/mp4/720/big_buck_bunny_720p_1mb.mp4"
-      }
-    ];
-    respond(res, { streams });
-  } catch (err) {
-    console.error("Stream handler error:", err);
-    respond(res, { streams: [] });
-  }
+addon.get("/:catalogChoices?/stream/:type/:id.json", (req, res) => {
+  respond(res, { streams: [] }, {
+    cacheMaxAge: 86400,
+    staleRevalidate: 604800,
+    staleError: 1209600,
+  });
 });
 
 module.exports = addon;
