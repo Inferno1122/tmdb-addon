@@ -52,19 +52,19 @@ addon.get("/:cfg?/catalog/:type/:id/:extra?.json", async (req, res) => {
   const search = query.get("search");
   const genre = query.get("genre");
 
-  let metas;
+  let result;
 
   try {
     if (search) {
-      metas = await cacheWrapCatalog(`search:${type}:${language}:${search}`, () =>
+      result = await cacheWrapCatalog(`search:${type}:${language}:${search}`, () =>
         getSearch(type, language, search, config)
       );
     } else if (id === "tmdb.trending") {
-      metas = await cacheWrapCatalog(`trending:${type}:${language}:${page}:${genre}`, () =>
+      result = await cacheWrapCatalog(`trending:${type}:${language}:${page}:${genre}`, () =>
         getTrending(type, language, page, genre)
       );
     } else {
-      metas = await cacheWrapCatalog(`catalog:${type}:${language}:${id}:${page}:${genre}`, () =>
+      result = await cacheWrapCatalog(`catalog:${type}:${language}:${id}:${page}:${genre}`, () =>
         getCatalog(type, language, page, id, genre, config)
       );
     }
@@ -72,7 +72,9 @@ addon.get("/:cfg?/catalog/:type/:id/:extra?.json", async (req, res) => {
     return res.status(404).send("Not found");
   }
 
-  respond(res, { metas }, {
+  const metasArray = Array.isArray(result?.metas) ? result.metas : Array.isArray(result) ? result : [];
+
+  respond(res, { metas: metasArray }, {
     cacheControl: "public, max-age=86400, stale-while-revalidate=604800, stale-if-error=86400",
   });
 });
