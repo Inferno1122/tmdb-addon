@@ -1,116 +1,103 @@
 const express = require("express");
-const compression = require("compression");
 const path = require("path");
-
-const analytics = require("./utils/analytics");
-const { getCatalog } = require("./lib/getCatalog");
-const { getSearch } = require("./lib/getSearch");
-const { getManifest, DEFAULT_LANGUAGE } = require("./lib/getManifest");
-const { getMeta } = require("./lib/getMeta");
-const { getTmdb } = require("./lib/getTmdb");
-const { getTrending } = require("./lib/getTrending");
-const { getFavorites, getWatchList } = require("./lib/getPersonalLists");
-const { parseConfig, getRpdbPoster, checkIfExists } = require("./utils/parseProps");
-const { blurImage } = require("./utils/imageProcessor");
-const { cacheWrapMeta, cacheWrapCatalog } = require("./lib/getCache");
+const favicon = require("serve-favicon");
+const compression = require("compression");
 
 const addon = express();
 
 addon.use(compression());
-addon.use(analytics.middleware);
+addon.use(favicon(path.join(__dirname, "../public/favicon.png")));
 addon.use(express.static(path.join(__dirname, "../public")));
+addon.use(express.static(path.join(__dirname, "../dist")));
 
-const respond = (res, data, opts = {}) => {
-  const cc = [];
-  if (opts.sMaxAge) cc.push(`s-maxage=${opts.sMaxAge}`);
-  if (opts.stale) cc.push("stale-while-revalidate=604800", "stale-if-error=86400");
-  if (cc.length) res.setHeader("Cache-Control", `public, ${cc.join(", ")}`);
-  res.setHeader("Content-Type", "application/json");
+const { getCatalog } = require("./lib/getCatalog");
+const { getMeta } = require("./lib/getMeta");
+const { getManifest, DEFAULT_LANGUAGE } = require("./lib/getManifest");
+const { getSearch } = require("./lib/getSearch");
+const { getTrending } = require("./lib/getTrending");
+const { getTmdb } = require("./lib/getTmdb");
+const { parseConfig } = require("./utils/parseProps");
+const { cacheWrapMeta, cacheWrapCatalog } = require("./lib/getCache");
+
+const respond = (res, data, headers = {}) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
-  return res.status(200).send(data);
+  res.setHeader("Content-Type", "application/json");
+  if (headers.cacheControl) {
+    res.setHeader("Cache-Control", headers.cacheControl);
+  }
+  res.status(200).send(data);
 };
 
 addon.get("/", (_, res) => res.redirect("/configure"));
-
-addon.get("/configure", (req, res) =>
+addon.get("/configure", (_, res) =>
   res.sendFile(path.join(__dirname, "../dist/index.html"))
 );
 
 addon.get("/:cfg?/manifest.json", async (req, res) => {
-  const manifest = await getManifest(parseConfig(req.params.cfg));
-  respond(res, manifest, { sMaxAge: 3600 });
+  const cfg = req.params.cfg;
+  const config = parseConfig(cfg);
+  const manifest = await getManifest(config);
+  respond(res, manifest, {
+    cacheControl: "public, max-age=3600, stale-while-revalidate=604800, stale-if-error=86400",
+  });
 });
 
 addon.get("/:cfg?/catalog/:type/:id/:extra?.json", async (req, res) => {
   const { cfg, type, id } = req.params;
-  const params = req.query;
   const config = parseConfig(cfg);
   const language = config.language || DEFAULT_LANGUAGE;
-  const page = Math.ceil((Number(params.skip) || 0) / 20) + 1;
+  const query = new URLSearchParams(req.url.split("?")[1]);
+  const skip = parseInt(query.get("skip") || "0");
+  const page = Math.ceil(skip / 20) + 1;
+  const search = query.get("search");
+  const genre = query.get("genre");
 
   let metas;
+
   try {
-    if (params.search) {
-      metas = await cacheWrapCatalog(`search:${type}:${language}:${params.search}`, () =>
-        getSearch(type, language, params.search, config)
+    if (search) {
+      metas = await cacheWrapCatalog(`search:${type}:${language}:${search}`, () =>
+        getSearch(type, language, search, config)
       );
     } else if (id === "tmdb.trending") {
-      metas = await cacheWrapCatalog(`trending:${type}:${language}:${page}:${params.genre || ""}`, () =>
-        getTrending(type, language, page, params.genre)
+      metas = await cacheWrapCatalog(`trending:${type}:${language}:${page}:${genre}`, () =>
+        getTrending(type, language, page, genre)
       );
-    } else if (id === "tmdb.favorites") {
-      metas = await getFavorites(type, language, page, params.genre, config.sessionId);
-    } else if (id === "tmdb.watchlist") {
-      metas = await getWatchList(type, language, page, params.genre, config.sessionId);
     } else {
-      metas = await cacheWrapCatalog(`catalog:${type}:${language}:${id}:${page}:${params.genre || ""}`, () =>
-        getCatalog(type, language, page, id, params.genre, config)
+      metas = await cacheWrapCatalog(`catalog:${type}:${language}:${id}:${page}:${genre}`, () =>
+        getCatalog(type, language, page, id, genre, config)
       );
     }
-  } catch (e) {
-    return res.status(404).send(e.message || "Not found");
+  } catch (err) {
+    return res.status(404).send("Not found");
   }
 
-  respond(res, { metas }, { sMaxAge: 86400, stale: true });
+  respond(res, { metas }, {
+    cacheControl: "public, max-age=86400, stale-while-revalidate=604800, stale-if-error=86400",
+  });
 });
 
 addon.get("/:cfg?/meta/:type/:id.json", async (req, res) => {
   const { cfg, type, id } = req.params;
   const config = parseConfig(cfg);
   const language = config.language || DEFAULT_LANGUAGE;
-  let tmdbId = id;
+  const tmdbId = id.split(":")[1];
 
-  if (!id.startsWith("tmdb:")) {
-    const imdb = id.split(":")[0];
-    const found = await getTmdb(type, imdb);
-    if (!found) return respond(res, { meta: {} });
-    tmdbId = `tmdb:${found}`;
-  }
-
-  const key = `${language}:${type}:${tmdbId.split(":")[1]}`;
-  const data = await cacheWrapMeta(key, () =>
-    getMeta(type, language, tmdbId.split(":")[1], config.rpdbkey, {
+  const data = await cacheWrapMeta(`${language}:${type}:${tmdbId}`, () =>
+    getMeta(type, language, tmdbId, config.rpdbkey, {
       hideEpisodeThumbnails: config.hideEpisodeThumbnails === "true"
     })
   );
-  respond(res, data, { sMaxAge: 1209600, stale: true });
+
+  respond(res, data, {
+    cacheControl: "public, max-age=1209600, stale-while-revalidate=604800, stale-if-error=86400",
+  });
 });
 
-addon.get("/api/image/blur", async (req, res) => {
-  const url = req.query.url;
-  if (!url) return res.status(400).json({ error: "Missing image URL" });
-  try {
-    const buf = await blurImage(url);
-    res.setHeader("Content-Type", "image/jpeg");
-    res.setHeader("Cache-Control", "public, max-age=31536000");
-    res.send(buf);
-  } catch {
-    res.status(500).json({ error: "Processing error" });
-  }
+addon.get("/:cfg?/stream/:type/:id.json", (_, res) => {
+  respond(res, { streams: [] }, {
+    cacheControl: "public, max-age=86400",
+  });
 });
-
-addon.get("/:cfg?/stream/:type/:id.json", (req, res) =>
-  respond(res, { streams: [] }, { sMaxAge: 86400 })
-);
 
 module.exports = addon;
