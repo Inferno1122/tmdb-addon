@@ -6,14 +6,13 @@
     { "src": "api/server.js", "use": "@vercel/node" }
   ],
   "routes": [
+    { "src": "/([^/].*)/manifest.json", "dest": "/api/server.js" },
     { "src": "/manifest.json", "dest": "/manifest.json" },
     { "src": "/catalog/.*", "dest": "/api/server.js" },
     { "src": "/meta/.*", "dest": "/api/server.js" },
     { "src": "/stream/.*", "dest": "/api/server.js" },
-
-    { "src": "/configure", "dest": "/dist/index.html" },
+    { "src": "/configure$", "dest": "/dist/index.html" },
     { "src": "/configure/(.*)", "dest": "/dist/$1" },
-
     { "src": "/(.*)", "dest": "/dist/$1" }
   ]
 }
