@@ -2,22 +2,20 @@
   "version": 2,
   "builds": [
     {
-      "src": "package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "dist"
-      }
-    },
-    {
-      "src": "addon/server.js",
+      "src": "src/server.js",
       "use": "@vercel/node"
     }
   ],
   "routes": [
-    { "src": "^/configure/(.*)", "dest": "/$1" },
-    { "src": "^/configure$", "dest": "/index.html" },
-    { "src": "^(.*)/manifest\\.json$", "dest": "/addon/server.js" },
-    { "src": "^(.*)/request_token$", "dest": "/addon/server.js" },
-    { "src": "/(.*)", "dest": "/addon/server.js" }
+    { "src": "^/configure$", "dest": "/public/index.html" },
+    { "src": "^/configure/(.*)", "dest": "/public/$1" },
+
+    { "src": "^/public/(.*)", "dest": "/public/$1" },
+
+    { "src": "^/(.*)\\.(js|css|png|jpg|svg|ico|woff2?)$", "dest": "/public/$1.$2" },
+
+    { "src": "^(.*)/manifest\\.json$", "dest": "/src/server.js" },
+    { "src": "^/api/(.*)", "dest": "/src/server.js" },
+    { "src": "^/(.*)$", "dest": "/src/server.js" }
   ]
 }
