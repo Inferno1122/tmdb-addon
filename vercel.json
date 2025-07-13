@@ -10,7 +10,10 @@
     },
     {
       "src": "addon/server.js",
-      "use": "@vercel/node"
+      "use": "@vercel/node",
+      "config": {
+        "regions": ["bom1"]
+      }
     }
   ],
   "routes": [
